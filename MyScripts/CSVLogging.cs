@@ -13,7 +13,7 @@ using System;
 public class CSVLogging : MonoBehaviour
 {
     [SerializeField] protected string filePath; // csv 保存するパス (relative? absolute?)
-    [SerializeField] protected string fileName = "data/hoge.csv"; // csv ファイル名
+    [SerializeField] protected string fileName = "hoge.csv"; // csv ファイル名
     [SerializeField] protected GameObject[] targetPositionAndRotations; // 保存するデータたち
 
     // ステート管理のためのフラグたち
@@ -64,10 +64,10 @@ public class CSVLogging : MonoBehaviour
     void Start()
     {
         // ここらへん連続して実行するとデータが吹き飛ぶ可能性があるので修正が必要
-        filePath = Application.dataPath;
+        filePath = Application.dataPath + "/data/";
         if (fileName == "")
         {
-            fileName = "/data/hoge" + System.DateTime.Now.ToString("yyyy-mm-dd-HH-mm") + ".csv";
+            fileName = "hoge" + System.DateTime.Now.ToString("yyyy-mm-dd-HH-mm") + ".csv";
         }
 
         datas = new Dictionary<string, Data>();
@@ -82,6 +82,9 @@ public class CSVLogging : MonoBehaviour
         Time.fixedDeltaTime = 0.01f;
     }
 
+    /// <summary>
+    /// 特にFPS気にしない処理は Update へ
+    /// </summary>
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.S))
@@ -133,6 +136,7 @@ public class CSVLogging : MonoBehaviour
     /// </summary>
     void formattingData(ref float[][] writeData, ref float[,] formattedData)
     {
+        // メモリ管理気を付ける
         int index = 0;
         foreach (var paq in datas.Values)
         {
@@ -145,6 +149,7 @@ public class CSVLogging : MonoBehaviour
             writeData[index++] = paq.qw.ToArray();
         }
         
+        // 転置する作業
         for (int i = 0; i < formattedData.GetLength(0); i++)
         {
             for (int j = 0; j < formattedData.GetLength(1); j++)
@@ -168,6 +173,8 @@ public class CSVLogging : MonoBehaviour
             }
         }
 
+        // それぞれのデータを連結して転置するという処理をしたい
+        // 列ごとに並んでる方が見やすいので...
         float[][] writeData = new float[headers.Count][];
         float[,] formattedData = new float[dataNum, headers.Count];
         formattingData(ref writeData, ref formattedData);
