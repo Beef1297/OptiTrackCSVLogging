@@ -10,13 +10,11 @@ public class ExperimentController : MonoBehaviour {
     [SerializeField] public OptiCSVLogging csvlogger;
     [SerializeField] public OSCClientForExperiment oscclient;
     [SerializeField] public string patternFile;
+    private AudioSource whiteNoise;
     Dictionary<string, string> oscStates = new Dictionary<string, string>
     {
         { "start", "/start" },
         { "stop", "/stop" },
-        { "pattern1", "/pattern1" },
-        { "pattern2", "/pattern2" },
-        { "pattern3", "/pattern3" }
     };
 
     private Dictionary<string, List<int>> vibrationPatterns;
@@ -30,7 +28,7 @@ public class ExperimentController : MonoBehaviour {
     // 測定回数
     private int measurementNum;
     static private int ex1MeasurementNum = 3;
-    static private int ex2MeasurementNum = 1;
+    static private int ex2MeasurementNum = 3;
 
     // 時間管理
     private float vibrationTime = 5.0f;
@@ -55,7 +53,6 @@ public class ExperimentController : MonoBehaviour {
         // 1行目はヘッダなので，それを利用して辞書型配列作成
         vibrationPatterns = new Dictionary<string, List<int>>();
         string[] patternHeaders = sr.ReadLine().Split(',');
-        Debug.Log(string.Join(",", patternHeaders));
         for (int i = 0; i < patternHeaders.Length; i++) {
             if (string.IsNullOrEmpty(patternHeaders[i])) continue;
             vibrationPatterns.Add(patternHeaders[i], new List<int>());
@@ -76,6 +73,7 @@ public class ExperimentController : MonoBehaviour {
         magnitude = new List<int>();
 
         measurementNum = 1;
+        whiteNoise = GetComponent<AudioSource>();
     }
 
 
@@ -92,11 +90,20 @@ public class ExperimentController : MonoBehaviour {
     }
 
     IEnumerator experiment1() {
-        Debug.Log("start experiment1");
-        csvlogger.startLogging("ex1-" + measurementNum);
-        yield return new WaitForSeconds(10.0f);
-        csvlogger.endLogging();
 
+        Debug.Log("start experiment1");
+        while (measurementNum <= ex1MeasurementNum) {
+            Debug.Log("To measure, please enter keypadenter or m");
+            yield return new WaitUntil(() =>
+            {
+                return Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.M);
+            });
+            Debug.Log("logging...");
+            csvlogger.startLogging("ex1-" + measurementNum);
+            yield return new WaitForSeconds(5.0f);
+            csvlogger.endLogging();
+            measurementNum++;
+        }
         Debug.Log("end experiment1");
     }
 
@@ -106,12 +113,17 @@ public class ExperimentController : MonoBehaviour {
             // vibration start phase
             Debug.Log("vibration phase");
             oscclient.sendBundle(formattingBudle());
+            //oscclient.sendInt("/headphone", 1);
+            whiteNoise.Play();
+            yield return new WaitForSeconds(0.3f);
             oscclient.sendInt(oscStates["start"], 1);
             csvlogger.startLogging("ex2-" + vibrationPatterns["patternID"][measurementNum - 1] + "-" + measurementNum);
             yield return new WaitForSeconds(vibrationTime);
 
             // breaking (vibration end phase)
             oscclient.sendInt(oscStates["stop"], 0);
+            //oscclient.sendInt("/headphone", 0);
+            whiteNoise.Stop();
             csvlogger.endLogging();
 
             Debug.Log("Waiting Answer: if finished, put tenkey enter or right arrow");
