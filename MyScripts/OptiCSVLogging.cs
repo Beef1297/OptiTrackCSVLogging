@@ -51,6 +51,7 @@ public class OptiCSVLogging : CSVLogging {
             Debug.LogError("Objects for csv log were not set");
             Application.Quit();
         }
+
         datas = new Dictionary<string, Data>();
         initializeDataDictionary();
         timeStamps = new List<float>();
@@ -90,6 +91,29 @@ public class OptiCSVLogging : CSVLogging {
         writeCSV();
     }
 
+    /// <summary>
+    /// CSVに書き出すデータを整形する
+    /// </summary>
+    protected void formattingData(ref float[][] writeData, ref float[,] formattedData) {
+        // メモリ管理気を付ける
+        int index = 0;
+        foreach (var paq in datas.Values) {
+            writeData[index++] = paq.px.ToArray();
+            writeData[index++] = paq.py.ToArray();
+            writeData[index++] = paq.pz.ToArray();
+            writeData[index++] = paq.qx.ToArray();
+            writeData[index++] = paq.qy.ToArray();
+            writeData[index++] = paq.qz.ToArray();
+            writeData[index++] = paq.qw.ToArray();
+        }
+
+        // 転置する作業
+        for (int i = 0; i < formattedData.GetLength(0); i++) {
+            for (int j = 0; j < formattedData.GetLength(1); j++) {
+                formattedData[i, j] = writeData[j][i];
+            }
+        }
+    }
 
     override protected void writeCSV() {
 
@@ -98,7 +122,13 @@ public class OptiCSVLogging : CSVLogging {
         // 列ごとに並んでる方が見やすいので...
         float[][] writeData = new float[csvHeaders.Count][];
         float[,] formattedData = new float[dataNum, csvHeaders.Count];
-        Data.formattingData(ref datas, ref writeData, ref formattedData);
+        formattingData(ref writeData, ref formattedData);
+
+        /*
+        foreach (var d in formattedData) {
+            Debug.Log(d);
+        }
+        */
 
         sw = new StreamWriter(filePath + filePrefix + "-" + fileName + ".csv", false, Encoding.UTF8);
         sw.WriteLine("timestamp, " + string.Join(",", csvHeaders));  // header の書き出し

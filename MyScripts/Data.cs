@@ -26,27 +26,4 @@ public class Data {
         qw = new List<float>();
     }
 
-    /// <summary>
-    /// CSVに書き出すデータを整形する
-    /// </summary>
-    static public void formattingData(ref Dictionary<string, Data> datas, ref float[][] writeData, ref float[,] formattedData) {
-        // メモリ管理気を付ける
-        int index = 0;
-        foreach (var paq in datas.Values) {
-            writeData[index++] = paq.px.ToArray();
-            writeData[index++] = paq.py.ToArray();
-            writeData[index++] = paq.pz.ToArray();
-            writeData[index++] = paq.qx.ToArray();
-            writeData[index++] = paq.qy.ToArray();
-            writeData[index++] = paq.qz.ToArray();
-            writeData[index++] = paq.qw.ToArray();
-        }
-
-        // 転置する作業
-        for (int i = 0; i < formattedData.GetLength(0); i++) {
-            for (int j = 0; j < formattedData.GetLength(1); j++) {
-                formattedData[i, j] = writeData[j][i];
-            }
-        }
-    }
 }
