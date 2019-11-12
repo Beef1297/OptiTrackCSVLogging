@@ -115,7 +115,7 @@ public class ExperimentController : MonoBehaviour {
     }
 
 
-    Bundle formattingBudle(Dictionary<string, List<int>> vP) {
+    Bundle bundleVolumePattern(Dictionary<string, List<int>> vP) {
         Bundle bundle = new Bundle(Timestamp.Now);
         bundle.Add(new Message("/vibrators/1", vP["vibrator1"][measurementNum - 1] * vibrationVol[0]));
         bundle.Add(new Message("/vibrators/2", vP["vibrator2"][measurementNum - 1] * vibrationVol[1]));
@@ -124,6 +124,18 @@ public class ExperimentController : MonoBehaviour {
         bundle.Add(new Message("/vibrators/5", vP["vibrator5"][measurementNum - 1] * vibrationVol[4]));
         bundle.Add(new Message("/vibrators/6", vP["vibrator6"][measurementNum - 1] * vibrationVol[5]));
         bundle.Add(new Message("/vibrators/7", vP["vibrator7"][measurementNum - 1] * vibrationVol[6]));
+        return bundle;
+    }
+
+    Bundle bundleResetVolume() {
+        Bundle bundle = new Bundle(Timestamp.Now);
+        bundle.Add(new Message("/vibrators/1", 0));
+        bundle.Add(new Message("/vibrators/2", 0));
+        bundle.Add(new Message("/vibrators/3", 0));
+        bundle.Add(new Message("/vibrators/4", 0));
+        bundle.Add(new Message("/vibrators/5", 0));
+        bundle.Add(new Message("/vibrators/6", 0));
+        bundle.Add(new Message("/vibrators/7", 0));
         return bundle;
     }
 
@@ -148,91 +160,71 @@ public class ExperimentController : MonoBehaviour {
         isMeasuring = false;
     }
 
-    IEnumerator experiment2() {
-        Debug.Log("start experiment2");
+
+
+    IEnumerator experiment2(bool is_experiment) {
+        if (is_experiment) {
+            Debug.Log("start experiment2");
+        } else {
+            Debug.Log("start practice");
+        }
         isMeasuring = true;
 
-        while (measurementNum <= ex2MeasurementNum) {
-            // vibration start phase
-            oscclient.Send(oscStates["start"], 1);
-            oscclient.Send("/sound_vol", startSEVol);
-            oscclient.Send("/sound_channel", 2); // スタートの効果音を鳴らす
-            yield return new WaitForSeconds(2.0f);
+        int maxNum = (is_experiment) ? ex2MeasurementNum : practiceNum;
 
-            Debug.Log("第 " + measurementNum + " 測定");
+        while (measurementNum <= maxNum) {
+            // vibration start phase
+            oscclient.Send("/start", 1);
+            // これから振動するという効果音を鳴らす
+            oscclient.Send("/sound_vol", startSEVol);
+            oscclient.Send("/sound_channel", 2);
+            yield return new WaitForSeconds(2.0f); // 実験姿勢を作ってもらうために数秒おく
+
             Debug.Log("vibration phase");
-            oscclient.sendBundle(formattingBudle(ex2VibrationPatterns));
-            oscclient.Send("/sound_vol", whiteNoiseVol);
+            oscclient.Send("/sound_vol", whiteNoiseVol); // ホワイトノイズの Vol 設定
             oscclient.Send("/sound_channel", 1); // 振動の 少し前からホワイトノイズを流し始める
-            Debug.Log(string.Format("振動パターンは{0}です", ex2VibrationPatterns["patternID"][measurementNum - 1]));
-            yield return new WaitForSeconds(1.0f);
-            csvlogger.startLogging(subjectName, "ex2-" + ex2VibrationPatterns["patternID"][measurementNum - 1] + "-" + measurementNum);
-            yield return new WaitForSeconds(vibrationTime);
+            // 意図しない錯覚が生起した際にメモするため
+            Debug.Log(string.Format("{0} : 振動パターンは{1}です", measurementNum, ex2VibrationPatterns["patternID"][measurementNum - 1]));
+            yield return new WaitForSeconds(1.0f); // 1秒前からホワイトノイズを流す
+            // 本番なら csv log 開始
+            oscclient.sendBundle(bundleVolumePattern(ex2VibrationPatterns)); // 振動パターンを送る
+            if (is_experiment) csvlogger.startLogging(subjectName, "ex2-" + ex2VibrationPatterns["patternID"][measurementNum - 1] + "-" + measurementNum);
+            // 振動開始
+            yield return new WaitForSeconds(vibrationTime); // vibrationTime だけ止めることで振動を提示する
 
             // breaking (vibration end phase)
-            oscclient.Send(oscStates["stop"], 0);
-            oscclient.Send("/sound_vol", 0);
-            oscclient.Send("/sound_channel", 0);
-            csvlogger.endLogging();
+            oscclient.Send(oscStates["stop"], 0); // 振動停止
+            oscclient.sendBundle(bundleResetVolume()); // 振動子のvolume を reset する
+            oscclient.Send("/sound_channel", 0); // ホワイトノイズ停止
+            // 本番ならcsv log 停止
+            if (is_experiment) csvlogger.endLogging();
 
+            // 被験者が主観評価を回答するまで待つ
             Debug.Log("Waiting Answer: if finished, put tenkey enter or right arrow");
             yield return new WaitUntil(() => {
                 return Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.RightArrow);
             });
-            Debug.Log("braking phase");
+
             // 10 回ごとに大きい休憩を取る
             if (measurementNum % 10 == 0) {
+                Debug.Log("large braking phase");
                 yield return new WaitForSeconds(largeBreakingTime);
+                Debug.Log("end break, please prepare for next vibration: put keypadenter or rightarrow");
+                yield return new WaitUntil(() => {
+                    return Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.RightArrow);
+                });
             } else {
+                Debug.Log("braking phase");
                 yield return new WaitForSeconds(breakingTime);
             }
             measurementNum++;
         }
 
-        Debug.Log("end experiment2");
-        isMeasuring = false;
-    }
-
-    IEnumerator practice() {
-        Debug.Log("start practice");
-        isMeasuring = true;
-
-        while (measurementNum <= practiceNum) {
-            // vibration start phase
-            oscclient.Send(oscStates["start"], 1);
-            oscclient.Send("/sound_vol", startSEVol);
-            oscclient.Send("/sound_channel", 2); // スタートの効果音を鳴らす
-            yield return new WaitForSeconds(2.0f);
-
-            Debug.Log("第 " + measurementNum + "練習");
-            Debug.Log("vibration phase");
-            oscclient.sendBundle(formattingBudle(practiceVibrationPatterns));
-            oscclient.Send("/sound_vol", whiteNoiseVol);
-            oscclient.Send("/sound_channel", 1); // 振動の 少し前からホワイトノイズを流し始める
-            yield return new WaitForSeconds(1.0f);
-
-            yield return new WaitForSeconds(vibrationTime);
-
-            // breaking (vibration end phase)
-            oscclient.Send(oscStates["stop"], 0);
-            oscclient.Send("/sound_vol", 0);
-            oscclient.Send("/sound_channel", 0);
-
-            Debug.Log("Waiting Answer: if finished, put tenkey enter or right arrow");
-            yield return new WaitUntil(() => {
-                return Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.RightArrow);
-            });
-            Debug.Log("braking phase");
-            // 10 回ごとに大きい休憩を取る
-            if (measurementNum % 10 == 0) {
-                yield return new WaitForSeconds(largeBreakingTime);
-            } else {
-                yield return new WaitForSeconds(breakingTime);
-            }
-            measurementNum++;
+        if (is_experiment) {
+            Debug.Log("end experiment2");
+        } else {
+            Debug.Log("end practice");
         }
-
-        Debug.Log("end practice");
         isMeasuring = false;
     }
 
@@ -245,12 +237,12 @@ public class ExperimentController : MonoBehaviour {
 
         if (!isMeasuring && Input.GetKeyDown(KeyCode.Alpha2)) {
             measurementNum = 1;
-            StartCoroutine("experiment2");
+            StartCoroutine("experiment2", true);
         }
 
         if (!isMeasuring && Input.GetKeyDown(KeyCode.P)) {
             measurementNum = 1;
-            StartCoroutine("practice");
+            StartCoroutine("experiment2", false);
         }
     }
 
